@@ -30,12 +30,11 @@ end
 
 function (model::AdaptiveMean)(x)
     img = intensitymap(model.f(x), model.grid) |> baseimage
-    mr = to_real(CenteredLR(), img/sum(img))
-    return mr
+    return img/sum(img)
 end
 
 function (model::SimpleMean)(x)
-    return to_real(CenteredLR(), (model.gauss .+ x.fb*model.bkgd)./(1+x.fb))
+    return (model.gauss .+ x.fb*model.bkgd)./(1+x.fb)
 end
 
 struct SimpleMean{G, B} <: MeanModels
@@ -81,8 +80,7 @@ struct FixedMean{G} <: MeanModels
     """
     function FixedMean(m::VLBISkyModels.AbstractModel, grid::RectiGrid)
         img = intensitymap(m, grid)
-        rimg = to_real(CenteredLR(), img/flux(img)) |> baseimage
-        return new{typeof(rimg)}(rimg)
+        return new{typeof(rimg)}(baseimage(img/flux(img)))
     end
 end
 

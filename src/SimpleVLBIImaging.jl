@@ -1,4 +1,4 @@
-module SimpleImagingScripts
+module SimpleVLBIImaging
 
 using Comrade
 using VLBIImagePriors
@@ -18,7 +18,8 @@ export vlbi_imager, ImagingProblem
 
 
 include("mean_models.jl")
-include("skymodel.jl")
+include("imagemodel.jl")
+include("instrumentmodel.jl")
 include("problem.jl")
 include("imager.jl")
 

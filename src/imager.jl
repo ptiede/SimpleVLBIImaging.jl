@@ -1,12 +1,17 @@
-function vlbi_imager(post::ImagingProblem, output_folder::String;
+function vlbi_imager(prob::ImagingProblem,
+               instrument::InstrumentProblem,
+               output_folder::String;
                optimization_iters::Int = 1000,
                optimization_trials::Int = 5,
                rng = Random.default_rng(),
+               sample::Bool = true,
                nsamples::Int = 5000,
                n_adapts::Int = 2000,
-               benchmark  = true,
-               plot_res = true
+               benchmark::Bool  = true,
+               plot_res::Bool = true
                )
+
+    post = build_posterior(prob, instrument)
 
     tpost = asflat(post)
     ndim = dimension(post)
@@ -57,10 +62,10 @@ function vlbi_imager(post::ImagingProblem, output_folder::String;
 
     gtpR = Comrade.caltable(phasecache1, xopt.gpR)
     gtpL = Comrade.caltable(phasecache2, xopt.gpr)
-    gtR = Comrade.caltable(ampcache1, exp.(xopt.lgR))
-    gtL = Comrade.caltable(ampcache2, exp.(xopt.lgr))
-    dtR = Comrade.caltable(trackcache, complex.(xopt.dRx, xopt.dRy))
-    dtL = Comrade.caltable(trackcache, complex.(xopt.dLx, xopt.dLy))
+    gtR  = Comrade.caltable(ampcache1, exp.(xopt.lgR))
+    gtL  = Comrade.caltable(ampcache2, exp.(xopt.lgr))
+    dtR  = Comrade.caltable(trackcache, complex.(xopt.dRx, xopt.dRy))
+    dtL  = Comrade.caltable(trackcache, complex.(xopt.dLx, xopt.dLy))
 
     CSV.write(out*"gains_phase_right.csv", gtpR)
     CSV.write(out*"gains_amp_right.csv", gtR)
@@ -82,45 +87,46 @@ function vlbi_imager(post::ImagingProblem, output_folder::String;
 
 
 
+    if sample
+        out_sample_path = joinpath(output_folder, "SamplingFolder")
 
-    out_sample_path = joinpath(output_folder, "SamplingFolder")
-
-    metric = DiagEuclideanMetric(ndim)
-    trace = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote), term_buffer=500),
-                   nsamples;
-                   saveto=ComradeAHMC.DiskStore(mkpath(out_sample_path), 25),
-                   nadapts=nadapt, init_params=xopt
-                   )
+        metric = DiagEuclideanMetric(ndim)
+        trace = sample(rng, post, AHMC(;metric, autodiff=Val(:Zygote), term_buffer=500),
+                       nsamples;
+                       saveto=ComradeAHMC.DiskStore(mkpath(out_sample_path), 25),
+                       nadapts=nadapt, init_params=xopt
+                       )
 
 
-    chain = load_table(trace, n_adapts+1:100:nsamples)
-    c2 = 0.0    ## Construct the image model we fix the flux to 0.6 Jy in this case
+        chain = load_table(trace, n_adapts+1:100:nsamples)
+        c2 = 0.0    ## Construct the image model we fix the flux to 0.6 Jy in this case
 
-    out = joinpath(output_folder, "posterior_")
-    if plot_res
-        p = residual(vlbimodel(post, chain[end]), dvis)
-        for s in sample(chain, 10)
-            c2 += chi2(vlbimodel(post, s), dvis)/(4*2*length(dvis))
-            residual!(p, vlbimodel(post, s), dvis)
+        out = joinpath(output_folder, "posterior_")
+        if plot_res
+            p = residual(vlbimodel(post, chain[end]), dvis)
+            for s in sample(chain, 10)
+                c2 += chi2(vlbimodel(post, s), dvis)/(4*2*length(dvis))
+                residual!(p, vlbimodel(post, s), dvis)
+            end
+            savefig(out*"residuals.png")
         end
-        savefig(out*"residuals.png")
-    end
 
-    # Finally let's construct some representative image reconstructions.
-    samples = skymodel.(Ref(post), sample(chain, 100))
-    fov = max(fovx, fovy)
-    npix = max(nx, ny)
-    imgs = intensitymap.(samples, fov, fov, npix*2,  npix*2, x0, y0)
+        # Finally let's construct some representative image reconstructions.
+        samples = skymodel.(Ref(post), sample(chain, 100))
+        fov = max(fovx, fovy)
+        npix = max(nx, ny)
+        imgs = intensitymap.(samples, fov, fov, npix*2,  npix*2, x0, y0)
 
-    mimg = mean(imgs)
-    Comrade.save(out*"mean_image.fits", mimg)
-    Comrade.save(out*"random_image.fits", imgs[1])
+        mimg = mean(imgs)
+        Comrade.save(out*"mean_image.fits", mimg)
+        Comrade.save(out*"random_image.fits", imgs[1])
 
-    if plot_res
-        fig = imageviz(mimg)
-        save(out*"mean_img.png", fig)
-        fig = imageviz(imgs[1])
-        save(out*"random_image.png", fig)
+        if plot_res
+            fig = imageviz(mimg)
+            save(out*"mean_img.png", fig)
+            fig = imageviz(imgs[1])
+            save(out*"random_image.png", fig)
+        end
     end
 
     return trace
