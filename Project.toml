@@ -1,0 +1,7 @@
+[deps]
+AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Comrade = "99d987ce-9a1e-4df8-bc0b-1ea019aa547b"
+Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
+OptimizationOptimisers = "42dfb2eb-d2b4-4451-abcd-913932933ac1"
+VLBIImagePriors = "b1ba175b-8447-452c-b961-7db2d6f7a029"
